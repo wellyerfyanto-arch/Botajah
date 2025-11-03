@@ -12,5 +12,3 @@ services:
     envVars:
       - key: RENDER
         value: true
-      - key: FLASK_ENV
-        value: production
