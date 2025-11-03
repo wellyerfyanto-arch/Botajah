@@ -566,11 +566,11 @@ def control_bot_start():
     
     # ⚠️ GANTI URL TARGET ANDA DI SINI ⚠️
     target_urls = [
-        "https://www.cryptoajah.blogspot.com",
-        "https://www.cryptoajah.blogspot.com",
-        "https://www.cryptoajah.blogspot.com",
-        "https://www.cryptoajah.blogspot.com",
-        "https://www.cryptoajah.blogspot.com"
+        "https://cryptoajah.blogspot.com",
+        "https://cryptoajah.blogspot.com/2025/10/panduan-lengkap-berinvestasi.html",
+        "https://cryptoajah.blogspot.com/2025/10/cara-aman-menyimpan-bitcoin-panduan.html",
+        "https://cryptoajah.blogspot.com/2025/10/pengantar-cryptocurrency-apa-itu.html",
+        "https://cryptoajah.blogspot.com/2025/10/proses-penambangan-bitcoin-panduan.html"
     ]
     
     if bot_manager.start_bot(target_urls):
