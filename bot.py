@@ -29,24 +29,24 @@ bot_manager = None
 # Database proxy gratis (akan dirotate)
 PROXY_LIST = [
     # HTTP proxies
-    "103.121.215.202:8080",
-    "103.121.215.205:8080", 
-    "103.121.215.206:8080",
-    "45.95.147.106:8080",
-    "45.95.147.110:8080",
-    "45.95.147.112:8080",
-    "45.95.147.113:8080",
-    "45.95.147.114:8080",
+    "47.252.18.37:80",
+    "47.252.11.233:8080", 
+    "198.23.236.198:8888",
+    "47.251.87.74:6379",
+    "47.90.167.27:60000",
+    "47.89.159.212:1337",
+    "47.252.11.233:8080",
+    "66.29.154.103:3128",
     
     # SOCKS proxies
-    "185.199.229.156:7492",
-    "185.199.228.220:7302",
-    "185.199.231.45:8382",
-    "188.74.210.207:6286",
-    "188.74.183.10:8279",
-    "188.74.210.21:6100",
-    "45.155.68.129:8133",
-    "154.95.36.199:6893"
+    "192.111.137.37:18762",
+    "45.61.188.134:44499",
+    "134.209.29.120:1080",
+    "192.252.210.233:4145",
+    "89.46.249.142:31415",
+    "192.111.137.37:18762",
+    "45.61.188.134:44499",
+    "198.23.236.198:8888"
 ]
 
 class TabSession:
@@ -566,11 +566,11 @@ def control_bot_start():
     
     # ⚠️ GANTI URL TARGET ANDA DI SINI ⚠️
     target_urls = [
-        "https://www.wikipedia.org",
-        "https://www.github.com",
-        "https://stackoverflow.com",
-        "https://www.reddit.com",
-        "https://www.quora.com"
+        "https://www.cryptoajah.blogspot.com",
+        "https://www.cryptoajah.blogspot.com",
+        "https://www.cryptoajah.blogspot.com",
+        "https://www.cryptoajah.blogspot.com",
+        "https://www.cryptoajah.blogspot.com"
     ]
     
     if bot_manager.start_bot(target_urls):
