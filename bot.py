@@ -13,7 +13,6 @@ from datetime import datetime
 import requests
 from flask import Flask, jsonify, render_template_string
 import threading
-import json
 
 # Setup logging
 logging.basicConfig(
@@ -53,8 +52,6 @@ class AdvancedSeleniumBot:
         
         # 2. VPN Extension (Touch VPN)
         try:
-            # Download VPN extension jika belum ada
-            self.download_vpn_extension()
             crx_path = "touchvpn.crx"
             if os.path.exists(crx_path) and os.path.getsize(crx_path) > 1000:
                 chrome_options.add_extension(crx_path)
@@ -63,7 +60,7 @@ class AdvancedSeleniumBot:
         except Exception as e:
             logger.warning(f"⚠️ VPN Extension: {e}")
 
-        # 3. Konfigurasi Chrome untuk Render
+        # Konfigurasi Chrome untuk Render
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--headless')
@@ -74,7 +71,7 @@ class AdvancedSeleniumBot:
         chrome_options.add_experimental_option('useAutomationExtension', False)
         
         # Gunakan Chrome dari instalasi manual
-        chrome_options.binary_location = self.find_chrome_binary()
+        chrome_options.binary_location = '/tmp/chrome/chrome'
         
         try:
             self.driver = webdriver.Chrome(options=chrome_options)
@@ -89,30 +86,6 @@ class AdvancedSeleniumBot:
             logger.error(f"❌ Failed to start Chrome: {e}")
             return False
 
-    def find_chrome_binary(self):
-        """Cari Chrome binary"""
-        paths = [
-            '/tmp/chrome/chrome',
-            '/tmp/chrome/google-chrome',
-            '/usr/bin/google-chrome',
-            '/usr/bin/chromium-browser'
-        ]
-        for path in paths:
-            if os.path.exists(path):
-                return path
-        return None
-
-    def download_vpn_extension(self):
-        """Download VPN extension dari Chrome Web Store"""
-        crx_path = "touchvpn.crx"
-        if not os.path.exists(crx_path):
-            vpn_url = "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dbihmplhobchoageeokmgbdihknkjbknd%26installsource%3Dwebstore%26uc"
-            response = requests.get(vpn_url, stream=True)
-            with open(crx_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            logger.info("✅ VPN extension downloaded")
-
     def handle_vpn_popup(self):
         """Handle VPN extension popup"""
         try:
@@ -125,7 +98,7 @@ class AdvancedSeleniumBot:
             logger.warning(f"VPN popup handling: {e}")
 
     def change_google_location(self):
-        """4. Rubah titik Google sesuai lokasi VPN"""
+        """Rubah titik Google sesuai lokasi VPN"""
         google_domains = {
             "US": "https://www.google.com",
             "UK": "https://www.google.co.uk", 
@@ -153,7 +126,7 @@ class AdvancedSeleniumBot:
             return False
 
     def check_data_leak(self):
-        """5. Cek kebocoran data"""
+        """Cek kebocoran data"""
         self.session_data['current_step'] = "Checking data leak"
         logger.info("🔍 Checking data leak...")
         
@@ -164,7 +137,7 @@ class AdvancedSeleniumBot:
             # Cari informasi IP
             ip_elements = self.driver.find_elements(By.XPATH, "//*[contains(text(), 'IP address')]")
             if ip_elements:
-                ip_info = ip_elements[0].text[:100]  # Ambil sebagian teks
+                ip_info = ip_elements[0].text[:100]
                 logger.info(f"📊 IP Check: {ip_info}")
             
             self.session_data['data_leak_checked'] = True
@@ -174,15 +147,13 @@ class AdvancedSeleniumBot:
             return False
 
     def visit_target_url(self, url):
-        """6. Buka link target"""
+        """Buka link target"""
         self.session_data['current_step'] = f"Visiting {url}"
         logger.info(f"🌐 Visiting target URL: {url}")
         
         try:
             self.driver.get(url)
             self.session_data['pages_visited'] += 1
-            
-            # Tunggu page load
             time.sleep(random.uniform(3, 6))
             return True
         except Exception as e:
@@ -190,7 +161,7 @@ class AdvancedSeleniumBot:
             return False
 
     def smart_scroll(self, direction="down"):
-        """7. Scroll dengan durasi acak setiap session"""
+        """Scroll dengan durasi acak setiap session"""
         durations = {
             "down": random.uniform(8, 15),
             "up": random.uniform(5, 12)
@@ -225,24 +196,15 @@ class AdvancedSeleniumBot:
             return False
 
     def click_random_post(self):
-        """8. Buka link postingan acak"""
+        """Buka link postingan acak"""
         self.session_data['current_step'] = "Clicking random post"
         logger.info("🔗 Looking for posts to click...")
         
         try:
-            # Cari link yang mungkin postingan
             post_selectors = [
-                "a[href*='post']",
-                "a[href*='article']", 
-                "a[href*='blog']",
-                "a[class*='post']",
-                "a[class*='article']",
-                ".post-title a",
-                ".entry-title a",
-                "h2 a",
-                "h3 a",
-                ".title a",
-                "[class*='title'] a"
+                "a[href*='post']", "a[href*='article']", "a[href*='blog']",
+                "a[class*='post']", "a[class*='article']", ".post-title a",
+                ".entry-title a", "h2 a", "h3 a", ".title a"
             ]
             
             all_links = []
@@ -253,7 +215,6 @@ class AdvancedSeleniumBot:
                 except:
                     continue
             
-            # Filter valid links
             valid_links = []
             for link in all_links:
                 try:
@@ -267,8 +228,6 @@ class AdvancedSeleniumBot:
                 post_url = chosen_link.get_attribute('href') or "Unknown URL"
                 logger.info(f"📖 Clicking post: {post_url[:80]}...")
                 chosen_link.click()
-                
-                # Tunggu page load
                 time.sleep(random.uniform(4, 8))
                 return True
             else:
@@ -280,22 +239,15 @@ class AdvancedSeleniumBot:
             return False
 
     def handle_ads(self):
-        """9. Lewati iklan dengan berbagai keyword"""
+        """Lewati iklan dengan berbagai keyword"""
         self.session_data['current_step'] = "Handling ads"
         
         close_selectors = [
-            "button[aria-label*='close' i]",
-            "button[class*='close' i]",
-            "div[class*='close' i]",
-            "span[class*='close' i]",
-            "a[class*='close' i]",
-            ".close-btn",
-            ".ad-close",
-            ".skip-button",
-            "[data-dismiss='modal']"
+            "button[aria-label*='close' i]", "button[class*='close' i]",
+            "div[class*='close' i]", "span[class*='close' i]", "a[class*='close' i]",
+            ".close-btn", ".ad-close", ".skip-button", "[data-dismiss='modal']"
         ]
         
-        # Coba dengan CSS selector
         for selector in close_selectors:
             try:
                 buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
@@ -312,7 +264,6 @@ class AdvancedSeleniumBot:
             except:
                 continue
         
-        # Coba dengan text content
         close_texts = ['tutup', 'close', 'skip', 'lanjut', 'lewati', 'skip ad']
         for text in close_texts:
             try:
@@ -333,7 +284,7 @@ class AdvancedSeleniumBot:
         return False
 
     def refresh_page(self):
-        """10. Refresh halaman"""
+        """Refresh halaman"""
         self.session_data['current_step'] = "Refreshing page"
         logger.info("🔄 Refreshing page...")
         
@@ -346,7 +297,7 @@ class AdvancedSeleniumBot:
             return False
 
     def clear_cache(self):
-        """11. Clear cache dan history"""
+        """Clear cache dan history"""
         self.session_data['current_step'] = "Clearing cache"
         logger.info("🧹 Clearing cache and history...")
         
@@ -361,7 +312,6 @@ class AdvancedSeleniumBot:
             return False
 
     def get_session_stats(self):
-        """Ambil statistik session"""
         return {
             'session_start': self.session_data['session_start'],
             'user_agent': self.session_data['user_agent'],
@@ -376,7 +326,7 @@ class AdvancedSeleniumBot:
         }
 
     def run_complete_session(self, target_urls):
-        """12. Jalankan session lengkap dan ulang dari awal"""
+        """Jalankan session lengkap dan ulang dari awal"""
         self.session_data['session_start'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if not self.setup_driver():
@@ -391,40 +341,38 @@ class AdvancedSeleniumBot:
                 session_count += 1
                 logger.info(f"🔄 Starting complete session #{session_count}")
                 
-                # 1. Rotasi User Agent (sudah di setup_driver)
-                # 2. VPN Extension (sudah di setup_driver)
-                
-                # 3. Rubah titik Google
+                # 1. Rotasi User Agent & VPN (sudah di setup_driver)
+                # 2. Rubah titik Google
                 self.change_google_location()
                 
-                # 4. Cek kebocoran data
+                # 3. Cek kebocoran data
                 self.check_data_leak()
                 
-                # 5. Buka link target
+                # 4. Buka link target
                 target_url = random.choice(target_urls)
                 self.visit_target_url(target_url)
                 
-                # 6. Scroll down (durasi random)
+                # 5. Scroll down (durasi random)
                 self.smart_scroll("down")
                 
-                # 7. Scroll up (durasi random)  
+                # 6. Scroll up (durasi random)  
                 self.smart_scroll("up")
                 
-                # 8. Buka postingan
+                # 7. Buka postingan
                 self.click_random_post()
                 
-                # 9. Handle iklan (multiple attempts)
+                # 8. Handle iklan
                 for _ in range(3):
                     self.handle_ads()
                     time.sleep(1)
                 
-                # 10. Refresh
+                # 9. Refresh
                 self.refresh_page()
                 
-                # 11. Clear cache
+                # 10. Clear cache
                 self.clear_cache()
                 
-                # 12. Tunggu sebelum mengulang
+                # 11. Tunggu sebelum mengulang
                 wait_time = random.uniform(60, 180)
                 logger.info(f"⏰ Waiting {wait_time:.1f}s before next session...")
                 self.session_data['current_step'] = f"Waiting {wait_time:.1f}s"
@@ -440,7 +388,7 @@ class AdvancedSeleniumBot:
                 logger.info("🔄 Restarting in 30 seconds...")
                 time.sleep(30)
 
-# Flask Web Monitoring
+# Flask Routes
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
@@ -449,109 +397,107 @@ HTML_TEMPLATE = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            margin: 0; 
-            padding: 20px; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        .header { text-align: center; background: #2c3e50; color: white; padding: 20px; border-radius: 10px; }
+        .controls { text-align: center; margin: 20px 0; }
+        .btn { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-start { background: #27ae60; color: white; }
+        .btn-stop { background: #e74c3c; color: white; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin: 20px 0; }
+        .stat-card { background: #ecf0f1; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db; }
+        .log-container { background: #2c3e50; color: #27ae60; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto; font-family: monospace; }
+        .status-running { color: #27ae60; }
+        .status-stopped { color: #e74c3c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Selenium Bot Monitor</h1>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-start" onclick="controlBot('start')">🚀 Start Bot</button>
+            <button class="btn btn-stop" onclick="controlBot('stop')">🛑 Stop Bot</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card"><h3>Status</h3><div class="stat-value status-stopped" id="status">Stopped</div></div>
+            <div class="stat-card"><h3>Pages Visited</h3><div class="stat-value" id="pages">0</div></div>
+            <div class="stat-card"><h3>Ads Closed</h3><div class="stat-value" id="ads">0</div></div>
+            <div class="stat-card"><h3>VPN</h3><div class="stat-value" id="vpn">-</div></div>
+            <div class="stat-card"><h3>Google Domain</h3><div class="stat-value" id="googleDomain">-</div></div>
+            <div class="stat-card"><h3>Current Step</h3><div class="stat-value" id="currentStep">-</div></div>
+        </div>
+        
+        <div class="log-container" id="logContainer">
+            <div>> System ready. Click "Start Bot" to begin.</div>
+        </div>
+    </div>
+
+    <script>
+        function updateStats() {
+            fetch('/api/stats').then(r => r.json()).then(data => {
+                document.getElementById('status').textContent = data.status || 'Stopped';
+                document.getElementById('status').className = 'stat-value ' + (data.status === 'Running' ? 'status-running' : 'status-stopped');
+                document.getElementById('pages').textContent = data.pages_visited || 0;
+                document.getElementById('ads').textContent = data.ads_closed || 0;
+                document.getElementById('vpn').textContent = data.vpn_extension || '-';
+                document.getElementById('googleDomain').textContent = data.google_domain || '-';
+                document.getElementById('currentStep').textContent = data.current_step || '-';
+            });
         }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden;
+
+        function controlBot(action) {
+            fetch(`/api/control/${action}`).then(r => r.json()).then(data => {
+                addLog(`${action}: ${data.status}`);
+            });
         }
-        .header {
-            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
+
+        function addLog(message) {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            logContainer.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logContainer.scrollTop = logContainer.scrollHeight;
         }
-        .header h1 {
-            margin: 0;
-            font-size: 2.5em;
-        }
-        .controls {
-            padding: 20px;
-            text-align: center;
-            background: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .btn {
-            padding: 12px 30px;
-            margin: 0 10px;
-            border: none;
-            border-radius: 25px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .btn-start {
-            background: #28a745;
-            color: white;
-        }
-        .btn-stop {
-            background: #dc3545;
-            color: white;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-        .stats-grid {
-            padding: 30px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        .stat-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            border-left: 4px solid #3498db;
-        }
-        .stat-card h3 {
-            margin: 0 0 10px 0;
-            color: #2c3e50;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .stat-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: #2c3e50;
-            word-break: break-all;
-        }
-        .status-running { color: #28a745; }
-        .status-stopped { color: #dc3545; }
-        .log-container {
-            background: #1e1e1e;
-            color: #00ff00;
-            padding: 20px;
-            margin: 20px;
-            border-radius: 10px;
-            font-family: 'Courier New', monospace;
-            height: 400px;
-            overflow-y: auto;
-        }
-        .log-entry {
-            margin: 5px 0;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-        .current-step {
-            background: #fff3cd;
-            padding: 15px;
-            margin: 20px;
-            border-radius: 10px;
-            border-left: 4px solid #ffc107;
-        }
-        .step-text {
-            font-size: 16px;
-            font-weight: bold;
-  
+
+        setInterval(updateStats, 3000);
+        updateStats();
+    </script>
+</body>
+</html>
+'''
+
+@app.route('/')
+def dashboard():
+    return render_template_string(HTML_TEMPLATE)
+
+@app.route('/api/stats')
+def get_stats():
+    if bot_instance:
+        return jsonify(bot_instance.get_session_stats())
+    return jsonify({'status': 'Stopped'})
+
+@app.route('/api/control/<action>')
+def control_bot(action):
+    global bot_instance
+    if action == 'start' and not bot_instance:
+        def run_bot():
+            global bot_instance
+            bot_instance = AdvancedSeleniumBot()
+            # ⚠️ GANTI URL TARGET ANDA DI SINI ⚠️
+            target_urls = [
+                "https://www.cryptoajah.blogspot.com",
+                "https://www.cryptoajah.blogspot.com",
+                "https://cryptoajah.blogspot.com"
+            ]
+            bot_instance.run_complete_session(target_urls)
+        
+        thread = threading.Thread(target=run_bot)
+        thread.daemon = True
+        thread.start()
+        return jsonify({'status': 'Bot started successfully'})
+    
+    elif action == 'stop' and bot_instance:
+    
