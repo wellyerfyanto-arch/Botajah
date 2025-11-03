@@ -4,33 +4,29 @@ services:
     env: python
     plan: free
     buildCommand: |
-      # Install system dependencies for lxml
-      apt-get update
-      apt-get install -y \
-          libxml2-dev \
-          libxslt1-dev \
-          python3-dev \
-          build-essential \
-          zlib1g-dev
-      # Upgrade pip and install wheel
-      pip install --upgrade pip setuptools wheel
-      # Install Python packages
+      # Install system dependencies
+      apt-get update && apt-get install -y \
+          wget \
+          unzip \
+          libnss3 \
+          libatk-bridge2.0-0 \
+          libdrm2 \
+          libxkbcommon0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          libgbm1 \
+          libxss1 \
+          libasound2
+
+      # Install Python packages (webdriver-manager will handle Chrome/Chromium)
+      pip install --upgrade pip
       pip install -r requirements.txt
-      # Install Chrome
-      wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-      echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list
-      apt-get update
-      apt-get install -y google-chrome-stable
-      # Download ChromeDriver
-      CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-      wget https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chromedriver-linux64.zip
-      unzip chromedriver-linux64.zip
-      mv chromedriver-linux64/chromedriver /usr/local/bin/
-      chmod +x /usr/local/bin/chromedriver
-      # Download VPN extensions
+
+      # Download VPN extensions (optional)
       mkdir -p extensions
-      wget -O extensions/touch_vpn.crx "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dbihmplhobchoageeokmgbdihknkjbknd%26installsource%3Dwebstore%26uc" || true
-      wget -O extensions/hotspot_shield.crx "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dnlbejmccbhkncgokjcmghpfloaajcffj%26installsource%3Dwebstore%26uc" || true
+      wget -q -O extensions/touch_vpn.crx "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dbihmplhobchoageeokmgbdihknkjbknd%26installsource%3Dwebstore%26uc" || echo "VPN download failed"
+      wget -q -O extensions/hotspot_shield.crx "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dnlbejmccbhkncgokjcmghpfloaajcffj%26installsource%3Dwebstore%26uc" || echo "VPN download failed"
     startCommand: python bot.py
     envVars:
       - key: RENDER
