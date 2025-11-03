@@ -31,26 +31,66 @@
         .stat-item { 
             text-align: center; 
             padding: 15px; 
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .stat-item h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .stat-item p {
+            margin: 0;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2196F3;
         }
         .control-buttons { 
             margin: 20px 0; 
+            text-align: center;
         }
         button { 
-            padding: 10px 20px; 
+            padding: 12px 24px; 
             margin: 5px; 
             border: none; 
-            border-radius: 4px; 
-            cursor: pointer; 
+            border-radius: 6px; 
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
         }
-        .start-btn { background: #4CAF50; color: white; }
-        .stop-btn { background: #f44336; color: white; }
+        .start-btn { 
+            background: #4CAF50; 
+            color: white; 
+        }
+        .start-btn:hover {
+            background: #45a049;
+        }
+        .stop-btn { 
+            background: #f44336; 
+            color: white; 
+        }
+        .stop-btn:hover {
+            background: #da190b;
+        }
         .log-container { 
             height: 300px; 
             overflow-y: auto; 
             background: #1e1e1e; 
             color: #00ff00; 
             padding: 15px; 
-            font-family: monospace; 
+            font-family: monospace;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+        .status-running {
+            color: #4CAF50;
+        }
+        .status-stopped {
+            color: #f44336;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
         }
     </style>
 </head>
@@ -60,8 +100,8 @@
         
         <div class="card">
             <div class="control-buttons">
-                <button class="start-btn" onclick="controlBot('start')">Start Bot</button>
-                <button class="stop-btn" onclick="controlBot('stop')">Stop Bot</button>
+                <button class="start-btn" onclick="controlBot('start')">🚀 Start Bot</button>
+                <button class="stop-btn" onclick="controlBot('stop')">🛑 Stop Bot</button>
             </div>
         </div>
 
@@ -70,7 +110,7 @@
             <div class="stats-grid" id="statsGrid">
                 <div class="stat-item">
                     <h3>Status</h3>
-                    <p id="status">-</p>
+                    <p id="status" class="status-stopped">Stopped</p>
                 </div>
                 <div class="stat-item">
                     <h3>Pages Visited</h3>
@@ -79,6 +119,10 @@
                 <div class="stat-item">
                     <h3>Ads Closed</h3>
                     <p id="adsClosed">0</p>
+                </div>
+                <div class="stat-item">
+                    <h3>VPN Extension</h3>
+                    <p id="vpnExtension">-</p>
                 </div>
                 <div class="stat-item">
                     <h3>Session Start</h3>
@@ -108,29 +152,52 @@
         let performanceChart;
         let visitData = [];
         let adData = [];
+        let updateInterval;
 
         // Update stats every 3 seconds
-        setInterval(updateStats, 3000);
+        function startUpdating() {
+            updateInterval = setInterval(updateStats, 3000);
+        }
+
+        function stopUpdating() {
+            clearInterval(updateInterval);
+        }
 
         async function updateStats() {
             try {
                 const response = await fetch('/api/stats');
                 const data = await response.json();
                 
-                document.getElementById('status').textContent = data.status || '-';
+                document.getElementById('status').textContent = data.status || 'Stopped';
                 document.getElementById('pagesVisited').textContent = data.pages_visited || '0';
                 document.getElementById('adsClosed').textContent = data.ads_closed || '0';
+                document.getElementById('vpnExtension').textContent = data.vpn_extension || '-';
                 document.getElementById('sessionStart').textContent = data.session_start || '-';
                 document.getElementById('currentTime').textContent = data.current_time || '-';
 
+                // Update status color
+                const statusElement = document.getElementById('status');
+                if (data.status === 'Running') {
+                    statusElement.className = 'status-running';
+                } else {
+                    statusElement.className = 'status-stopped';
+                }
+
                 // Update charts
-                if (data.pages_visited) {
+                if (data.pages_visited !== undefined) {
                     visitData.push(data.pages_visited);
                     adData.push(data.ads_closed);
+                    
+                    // Keep only last 20 data points
+                    if (visitData.length > 20) {
+                        visitData = visitData.slice(-20);
+                        adData = adData.slice(-20);
+                    }
                     updateChart();
                 }
             } catch (error) {
                 console.error('Error fetching stats:', error);
+                addLog(`Error fetching stats: ${error.message}`);
             }
         }
 
@@ -139,6 +206,12 @@
                 const response = await fetch(`/api/control/${action}`);
                 const result = await response.json();
                 addLog(`Control: ${action} - ${result.status}`);
+                
+                if (action === 'start') {
+                    startUpdating();
+                } else if (action === 'stop') {
+                    stopUpdating();
+                }
             } catch (error) {
                 console.error('Error controlling bot:', error);
                 addLog(`Error: ${error.message}`);
@@ -170,13 +243,17 @@
                             label: 'Pages Visited',
                             data: visitData,
                             borderColor: 'rgb(75, 192, 192)',
-                            tension: 0.1
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            tension: 0.1,
+                            fill: true
                         },
                         {
                             label: 'Ads Closed',
                             data: adData,
                             borderColor: 'rgb(255, 99, 132)',
-                            tension: 0.1
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            tension: 0.1,
+                            fill: true
                         }
                     ]
                 },
@@ -184,18 +261,29 @@
                     responsive: true,
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Count'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Sessions'
+                            }
                         }
                     }
                 }
             });
         }
 
-        // Initial chart setup
+        // Initial setup
         window.onload = function() {
             updateChart();
             addLog('Monitoring dashboard initialized');
+            startUpdating(); // Start polling for stats
         };
     </script>
 </body>
-  </html>
+                    </html>
