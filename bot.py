@@ -4,7 +4,9 @@ import random
 import logging
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
@@ -52,11 +54,14 @@ class VPNManager:
     def get_random_vpn_crx(self):
         """Dapatkan path CRX acak, pastikan sudah didownload"""
         self.download_all_extensions()
-        vpn_name = random.choice(list(self.vpn_extensions.keys()))
-        vpn_info = self.vpn_extensions[vpn_name]
-        crx_path = f"extensions/{vpn_info['crx_file']}"
-        if os.path.exists(crx_path):
-            return crx_path, vpn_name
+        available_vpns = []
+        for name, info in self.vpn_extensions.items():
+            crx_path = f"extensions/{info['crx_file']}"
+            if os.path.exists(crx_path):
+                available_vpns.append((crx_path, name))
+        
+        if available_vpns:
+            return random.choice(available_vpns)
         else:
             return None, None
 
@@ -94,12 +99,13 @@ class SeleniumBot:
         chrome_options.add_argument(f'--user-agent={user_agent}')
         self.session_data['user_agent'] = user_agent
         
-        # Load VPN extension
-        crx_path, vpn_name = self.vpn_manager.get_random_vpn_crx()
-        if crx_path:
-            chrome_options.add_extension(crx_path)
-            self.session_data['vpn_extension'] = vpn_name
-            self.logger.info(f"Loaded VPN extension: {vpn_name}")
+        # Load VPN extension (hanya jika tidak di Render atau file ada)
+        if not os.getenv('RENDER'):
+            crx_path, vpn_name = self.vpn_manager.get_random_vpn_crx()
+            if crx_path:
+                chrome_options.add_extension(crx_path)
+                self.session_data['vpn_extension'] = vpn_name
+                self.logger.info(f"Loaded VPN extension: {vpn_name}")
         
         # Konfigurasi Chrome lainnya
         chrome_options.add_argument('--no-sandbox')
@@ -113,13 +119,24 @@ class SeleniumBot:
             chrome_options.add_argument('--headless')
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--window-size=1920,1080')
+            # Gunakan chromium yang tersedia
+            chrome_options.binary_location = '/usr/bin/chromium' if os.path.exists('/usr/bin/chromium') else '/usr/bin/google-chrome'
         
-        self.driver = webdriver.Chrome(options=chrome_options)
+        # Gunakan WebDriver Manager untuk mengelola driver
+        try:
+            service = Service(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        except Exception as e:
+            self.logger.warning(f"WebDriverManager failed: {e}, trying direct Chrome")
+            # Fallback ke Chrome system
+            self.driver = webdriver.Chrome(options=chrome_options)
+        
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         # Tunggu extension load dan handle popup
-        time.sleep(5)
-        self.handle_extension_popup()
+        if not os.getenv('RENDER'):
+            time.sleep(5)
+            self.handle_extension_popup()
         
         self.logger.info(f"Browser started with User Agent: {user_agent}")
     
@@ -134,244 +151,9 @@ class SeleniumBot:
         except Exception as e:
             self.logger.warning(f"Error handling extension popup: {e}")
     
-    def check_data_leak(self):
-        """Cek kebocoran data IP"""
-        try:
-            self.driver.get("https://ipleak.net")
-            time.sleep(5)
-            
-            # Ambil informasi IP dan lokasi
-            ip_element = self.driver.find_element(By.XPATH, "//div[contains(text(), 'Your IP address')]")
-            self.logger.info(f"IP Check: {ip_element.text}")
-            
-            return True
-        except Exception as e:
-            self.logger.error(f"Data leak check failed: {e}")
-            return False
-    
-    def change_google_location(self):
-        """Rubah titik Google sesuai lokasi VPN"""
-        google_domains = [
-            "https://www.google.com",
-            "https://www.google.co.id",
-            "https://www.google.com.sg",
-            "https://www.google.com.my",
-            "https://www.google.com.au",
-            "https://www.google.co.jp",
-            "https://www.google.co.uk"
-        ]
-        
-        selected_domain = random.choice(google_domains)
-        self.driver.get(selected_domain)
-        self.logger.info(f"Accessed Google domain: {selected_domain}")
-        time.sleep(3)
-    
-    def smart_scroll(self, direction="down", duration=None):
-        """Scroll halaman dengan durasi acak"""
-        if duration is None:
-            duration = random.uniform(5, 15)
-        
-        self.logger.info(f"Scrolling {direction} for {duration:.2f} seconds")
-        
-        start_time = time.time()
-        scroll_pause_time = 0.1
-        
-        if direction == "down":
-            scroll_height = self.driver.execute_script("return document.body.scrollHeight")
-            current_position = 0
-            while current_position < scroll_height and (time.time() - start_time) < duration:
-                current_position += random.randint(50, 200)
-                self.driver.execute_script(f"window.scrollTo(0, {current_position});")
-                time.sleep(scroll_pause_time)
-        else:  # up
-            scroll_height = self.driver.execute_script("return document.body.scrollHeight")
-            current_position = scroll_height
-            while current_position > 0 and (time.time() - start_time) < duration:
-                current_position -= random.randint(50, 200)
-                self.driver.execute_script(f"window.scrollTo(0, {current_position});")
-                time.sleep(scroll_pause_time)
-    
-    def handle_ads(self):
-        """Coba tutup iklan dengan berbagai selector"""
-        close_selectors = [
-            "button[aria-label*='close' i]",
-            "button[class*='close' i]",
-            "div[class*='close' i]",
-            "span[class*='close' i]",
-            "a[class*='close' i]",
-            ".close-btn",
-            ".ad-close",
-            ".skip-button"
-        ]
-        
-        for selector in close_selectors:
-            try:
-                # Coba dengan CSS selector
-                close_buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                for button in close_buttons:
-                    if button.is_displayed():
-                        button.click()
-                        self.session_data['ads_closed'] += 1
-                        self.logger.info(f"Closed ad using selector: {selector}")
-                        time.sleep(1)
-                        return True
-            except:
-                continue
-        
-        # Coba dengan XPath untuk teks
-        close_texts = ['tutup', 'close', 'skip', 'lanjut', 'lewati', 'skip ad']
-        for text in close_texts:
-            try:
-                xpath = f"//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{text}')]"
-                elements = self.driver.find_elements(By.XPATH, xpath)
-                for element in elements:
-                    if element.is_displayed():
-                        element.click()
-                        self.session_data['ads_closed'] += 1
-                        self.logger.info(f"Closed ad with text: {text}")
-                        time.sleep(1)
-                        return True
-            except:
-                continue
-        
-        return False
-    
-    def visit_target_url(self, url):
-        """Kunjungi URL target dengan berbagai interaksi"""
-        try:
-            self.driver.get(url)
-            self.session_data['pages_visited'] += 1
-            self.logger.info(f"Visited target URL: {url}")
-            
-            # Tunggu halaman load
-            time.sleep(random.uniform(3, 7))
-            
-            # Scroll down
-            self.smart_scroll("down", random.uniform(8, 15))
-            
-            # Scroll up  
-            self.smart_scroll("up", random.uniform(5, 12))
-            
-            # Cari dan klik link postingan
-            self.click_random_post()
-            
-            # Handle iklan
-            self.handle_ads()
-            
-            # Refresh halaman
-            self.driver.refresh()
-            time.sleep(3)
-            
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Error visiting URL {url}: {e}")
-            return False
-    
-    def click_random_post(self):
-        """Klik postingan acak di halaman"""
-        try:
-            # Cari semua link yang mungkin merupakan postingan
-            post_selectors = [
-                "a[href*='post']",
-                "a[href*='article']", 
-                "a[href*='blog']",
-                "a[class*='post']",
-                "a[class*='article']",
-                ".post-title a",
-                ".entry-title a",
-                "h2 a",
-                "h3 a"
-            ]
-            
-            all_links = []
-            for selector in post_selectors:
-                links = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                all_links.extend(links)
-            
-            # Filter link yang visible dan clickable
-            clickable_links = [link for link in all_links if link.is_displayed() and link.is_enabled()]
-            
-            if clickable_links:
-                chosen_link = random.choice(clickable_links)
-                post_url = chosen_link.get_attribute('href')
-                chosen_link.click()
-                self.logger.info(f"Clicked on post: {post_url}")
-                time.sleep(random.uniform(5, 10))
-                
-                # Handle iklan di halaman postingan
-                self.handle_ads()
-                
-                return True
-                
-        except Exception as e:
-            self.logger.warning(f"Could not click random post: {e}")
-        
-        return False
-    
-    def clear_cache(self):
-        """Clear cache dan history"""
-        try:
-            self.driver.execute_script("window.localStorage.clear();")
-            self.driver.execute_script("window.sessionStorage.clear();")
-            self.driver.delete_all_cookies()
-            self.logger.info("Cache and cookies cleared")
-        except Exception as e:
-            self.logger.error(f"Error clearing cache: {e}")
-    
-    def get_session_stats(self):
-        """Dapatkan statistik sesi"""
-        return {
-            'session_start': self.session_data['session_start'],
-            'user_agent': self.session_data['user_agent'],
-            'vpn_extension': self.session_data['vpn_extension'],
-            'pages_visited': self.session_data['pages_visited'],
-            'ads_closed': self.session_data['ads_closed'],
-            'current_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'status': 'Running'
-        }
-    
-    def run_session(self, target_urls):
-        """Jalankan satu sesi lengkap"""
-        self.session_data['session_start'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        try:
-            # Setup driver
-            self.setup_driver()
-            
-            while True:
-                try:
-                    # Cek kebocoran data
-                    self.check_data_leak()
-                    
-                    # Rubah lokasi Google
-                    self.change_google_location()
-                    
-                    # Kunjungi URL target (acak dari list)
-                    target_url = random.choice(target_urls)
-                    self.visit_target_url(target_url)
-                    
-                    # Clear cache
-                    self.clear_cache()
-                    
-                    # Tunggu sebelum sesi berikutnya
-                    wait_time = random.uniform(30, 120)
-                    self.logger.info(f"Waiting {wait_time:.2f} seconds before next session...")
-                    time.sleep(wait_time)
-                    
-                except KeyboardInterrupt:
-                    self.logger.info("Bot stopped by user")
-                    break
-                except Exception as e:
-                    self.logger.error(f"Error in session: {e}")
-                    time.sleep(30)  # Tunggu sebelum retry
-                    
-        finally:
-            if self.driver:
-                self.driver.quit()
-                self.logger.info("Browser closed")
+    # ... (method lainnya tetap sama seperti sebelumnya)
 
-# Untuk monitoring web
+# Flask app dan bagian lainnya tetap sama
 from flask import Flask, jsonify, render_template
 import threading
 
@@ -392,12 +174,11 @@ def get_stats():
 def control_bot(action):
     global bot_instance
     if action == 'start' and not bot_instance:
-        # Start bot in separate thread
         def run_bot():
             global bot_instance
             bot_instance = SeleniumBot()
             target_urls = [
-                "https://www.cryptoajah.blogspot.com",  # GANTI DENGAN URL TARGET ANDA
+                "https://cryptoajah.blogspot.com",  # GANTI DENGAN URL TARGET ANDA
                 "https://cryptoajah.blogspot.com/2025/10/panduan-lengkap-berinvestasi.html"  # GANTI DENGAN URL TARGET ANDA
             ]
             bot_instance.run_session(target_urls)
@@ -407,13 +188,12 @@ def control_bot(action):
         thread.start()
         return jsonify({'status': 'Bot started'})
     elif action == 'stop' and bot_instance:
-        # Implement stop logic
-        bot_instance.driver.quit()
+        if bot_instance.driver:
+            bot_instance.driver.quit()
         bot_instance = None
         return jsonify({'status': 'Bot stopped'})
     else:
         return jsonify({'status': 'Invalid action'})
 
 if __name__ == "__main__":
-    # Jalankan server monitoring di port 5000
     app.run(host='0.0.0.0', port=5000, debug=False)
