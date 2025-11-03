@@ -11,16 +11,65 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from fake_useragent import UserAgent
 import json
 from datetime import datetime
+import requests
+
+class VPNManager:
+    def __init__(self):
+        self.vpn_extensions = {
+            "touchvpn": {
+                "id": "bihmplhobchoageeokmgbdihknkjbknd",
+                "crx_url": "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dbihmplhobchoageeokmgbdihknkjbknd%26installsource%3Dwebstore%26uc",
+                "crx_file": "touch_vpn.crx"
+            },
+            "hotspotshield": {
+                "id": "nlbejmccbhkncgokjcmghpfloaajcffj", 
+                "crx_url": "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dnlbejmccbhkncgokjcmghpfloaajcffj%26installsource%3Dwebstore%26uc",
+                "crx_file": "hotspot_shield.crx"
+            }
+        }
+    
+    def download_crx_file(self, url, output_path):
+        """Download CRX file dari URL"""
+        try:
+            response = requests.get(url, stream=True)
+            with open(output_path, 'wb') as file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    file.write(chunk)
+            print(f"Downloaded CRX to: {output_path}")
+            return True
+        except Exception as e:
+            print(f"Error downloading CRX: {e}")
+            return False
+    
+    def download_all_extensions(self):
+        """Download semua VPN extensions"""
+        for name, info in self.vpn_extensions.items():
+            crx_path = f"extensions/{info['crx_file']}"
+            if not os.path.exists(crx_path):
+                os.makedirs("extensions", exist_ok=True)
+                self.download_crx_file(info['crx_url'], crx_path)
+    
+    def get_random_vpn_crx(self):
+        """Dapatkan path CRX acak, pastikan sudah didownload"""
+        self.download_all_extensions()
+        vpn_name = random.choice(list(self.vpn_extensions.keys()))
+        vpn_info = self.vpn_extensions[vpn_name]
+        crx_path = f"extensions/{vpn_info['crx_file']}"
+        if os.path.exists(crx_path):
+            return crx_path, vpn_name
+        else:
+            return None, None
 
 class SeleniumBot:
     def __init__(self):
         self.setup_logging()
         self.ua = UserAgent()
         self.driver = None
+        self.vpn_manager = VPNManager()
         self.session_data = {
             'session_start': None,
             'user_agent': None,
-            'vpn_location': None,
+            'vpn_extension': None,
             'pages_visited': 0,
             'ads_closed': 0
         }
@@ -45,6 +94,13 @@ class SeleniumBot:
         chrome_options.add_argument(f'--user-agent={user_agent}')
         self.session_data['user_agent'] = user_agent
         
+        # Load VPN extension
+        crx_path, vpn_name = self.vpn_manager.get_random_vpn_crx()
+        if crx_path:
+            chrome_options.add_extension(crx_path)
+            self.session_data['vpn_extension'] = vpn_name
+            self.logger.info(f"Loaded VPN extension: {vpn_name}")
+        
         # Konfigurasi Chrome lainnya
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
@@ -61,16 +117,22 @@ class SeleniumBot:
         self.driver = webdriver.Chrome(options=chrome_options)
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
+        # Tunggu extension load dan handle popup
+        time.sleep(5)
+        self.handle_extension_popup()
+        
         self.logger.info(f"Browser started with User Agent: {user_agent}")
     
-    def install_vpn_extension(self):
-        """Install VPN extension dari Chrome Web Store"""
+    def handle_extension_popup(self):
+        """Handle extension popup window"""
         try:
-            # Note: Anda perlu menambahkan extension VPN secara manual atau melalui CRX file
-            # Contoh: chrome_options.add_extension('path/to/vpn_extension.crx')
-            self.logger.info("VPN extension should be pre-installed in the browser")
+            if len(self.driver.window_handles) > 1:
+                for handle in self.driver.window_handles[1:]:
+                    self.driver.switch_to.window(handle)
+                    self.driver.close()
+                self.driver.switch_to.window(self.driver.window_handles[0])
         except Exception as e:
-            self.logger.warning(f"Could not install VPN extension: {e}")
+            self.logger.warning(f"Error handling extension popup: {e}")
     
     def check_data_leak(self):
         """Cek kebocoran data IP"""
@@ -137,11 +199,6 @@ class SeleniumBot:
             "div[class*='close' i]",
             "span[class*='close' i]",
             "a[class*='close' i]",
-            "button:contains('tutup')",
-            "button:contains('close')", 
-            "button:contains('skip')",
-            "button:contains('lanjut')",
-            "button:contains('lewati')",
             ".close-btn",
             ".ad-close",
             ".skip-button"
@@ -267,6 +324,7 @@ class SeleniumBot:
         return {
             'session_start': self.session_data['session_start'],
             'user_agent': self.session_data['user_agent'],
+            'vpn_extension': self.session_data['vpn_extension'],
             'pages_visited': self.session_data['pages_visited'],
             'ads_closed': self.session_data['ads_closed'],
             'current_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -280,9 +338,6 @@ class SeleniumBot:
         try:
             # Setup driver
             self.setup_driver()
-            
-            # Install VPN (dalam praktiknya, perlu setup manual)
-            self.install_vpn_extension()
             
             while True:
                 try:
@@ -342,8 +397,8 @@ def control_bot(action):
             global bot_instance
             bot_instance = SeleniumBot()
             target_urls = [
-                "https://cryptoajah.blogspot.com/2025/10/panduan-lengkap-berinvestasi.html",  # Ganti dengan URL target
-                "https://cryptoajah.blogspot.com/"
+                "https://www.example.com",  # GANTI DENGAN URL TARGET ANDA
+                "https://www.example2.com"  # GANTI DENGAN URL TARGET ANDA
             ]
             bot_instance.run_session(target_urls)
         
@@ -353,7 +408,9 @@ def control_bot(action):
         return jsonify({'status': 'Bot started'})
     elif action == 'stop' and bot_instance:
         # Implement stop logic
-        return jsonify({'status': 'Stop command sent'})
+        bot_instance.driver.quit()
+        bot_instance = None
+        return jsonify({'status': 'Bot stopped'})
     else:
         return jsonify({'status': 'Invalid action'})
 
