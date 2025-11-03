@@ -4,29 +4,25 @@ services:
     env: python
     plan: free
     buildCommand: |
-      # Install system dependencies
-      apt-get update && apt-get install -y \
-          wget \
-          unzip \
-          libnss3 \
-          libatk-bridge2.0-0 \
-          libdrm2 \
-          libxkbcommon0 \
-          libxcomposite1 \
-          libxdamage1 \
-          libxrandr2 \
-          libgbm1 \
-          libxss1 \
-          libasound2
-
-      # Install Python packages (webdriver-manager will handle Chrome/Chromium)
       pip install --upgrade pip
       pip install -r requirements.txt
-
-      # Download VPN extensions (optional)
+      
+      # Download Chrome binary manually (no apt-get)
+      wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+      dpkg -x google-chrome-stable_current_amd64.deb /tmp/chrome
+      mkdir -p /app/chrome
+      cp -r /tmp/chrome/opt/google/chrome/* /app/chrome/
+      cp /tmp/chrome/usr/bin/* /app/chrome/
+      
+      # Download ChromeDriver
+      wget -q https://storage.googleapis.com/chrome-for-testing-public/120.0.6099.109/linux64/chromedriver-linux64.zip
+      unzip -q chromedriver-linux64.zip
+      mv chromedriver-linux64/chromedriver /usr/local/bin/
+      chmod +x /usr/local/bin/chromedriver
+      
+      # Download VPN extensions
       mkdir -p extensions
       wget -q -O extensions/touch_vpn.crx "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dbihmplhobchoageeokmgbdihknkjbknd%26installsource%3Dwebstore%26uc" || echo "VPN download failed"
-      wget -q -O extensions/hotspot_shield.crx "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dnlbejmccbhkncgokjcmghpfloaajcffj%26installsource%3Dwebstore%26uc" || echo "VPN download failed"
     startCommand: python bot.py
     envVars:
       - key: RENDER
