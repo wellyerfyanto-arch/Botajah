@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selenium Bot Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+        }
+        .card { 
+            background: white; 
+            padding: 20px; 
+            margin: 10px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+        }
+        .stat-item { 
+            text-align: center; 
+            padding: 15px; 
+        }
+        .control-buttons { 
+            margin: 20px 0; 
+        }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .log-container { 
+            height: 300px; 
+            overflow-y: auto; 
+            background: #1e1e1e; 
+            color: #00ff00; 
+            padding: 15px; 
+            font-family: monospace; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Selenium Bot Monitor</h1>
+        
+        <div class="card">
+            <div class="control-buttons">
+                <button class="start-btn" onclick="controlBot('start')">Start Bot</button>
+                <button class="stop-btn" onclick="controlBot('stop')">Stop Bot</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Real-time Statistics</h2>
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-item">
+                    <h3>Status</h3>
+                    <p id="status">-</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Pages Visited</h3>
+                    <p id="pagesVisited">0</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Ads Closed</h3>
+                    <p id="adsClosed">0</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Session Start</h3>
+                    <p id="sessionStart">-</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Current Time</h3>
+                    <p id="currentTime">-</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🔄 Activity Log</h2>
+            <div class="log-container" id="logContainer">
+                <!-- Logs will appear here -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📈 Performance Chart</h2>
+            <canvas id="performanceChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let performanceChart;
+        let visitData = [];
+        let adData = [];
+
+        // Update stats every 3 seconds
+        setInterval(updateStats, 3000);
+
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                document.getElementById('status').textContent = data.status || '-';
+                document.getElementById('pagesVisited').textContent = data.pages_visited || '0';
+                document.getElementById('adsClosed').textContent = data.ads_closed || '0';
+                document.getElementById('sessionStart').textContent = data.session_start || '-';
+                document.getElementById('currentTime').textContent = data.current_time || '-';
+
+                // Update charts
+                if (data.pages_visited) {
+                    visitData.push(data.pages_visited);
+                    adData.push(data.ads_closed);
+                    updateChart();
+                }
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+            }
+        }
+
+        async function controlBot(action) {
+            try {
+                const response = await fetch(`/api/control/${action}`);
+                const result = await response.json();
+                addLog(`Control: ${action} - ${result.status}`);
+            } catch (error) {
+                console.error('Error controlling bot:', error);
+                addLog(`Error: ${error.message}`);
+            }
+        }
+
+        function addLog(message) {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            
+            if (performanceChart) {
+                performanceChart.destroy();
+            }
+
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: visitData.map((_, i) => `Session ${i+1}`),
+                    datasets: [
+                        {
+                            label: 'Pages Visited',
+                            data: visitData,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Ads Closed',
+                            data: adData,
+                            borderColor: 'rgb(255, 99, 132)',
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initial chart setup
+        window.onload = function() {
+            updateChart();
+            addLog('Monitoring dashboard initialized');
+        };
+    </script>
+</body>
+  </html>
