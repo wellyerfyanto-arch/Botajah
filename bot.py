@@ -4,6 +4,7 @@ import random
 import logging
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.common.by import By
 from fake_useragent import UserAgent
 from datetime import datetime
@@ -22,77 +23,94 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 bot_instance = None
 
-class SeleniumBot:
+class UniversalBot:
     def __init__(self):
         self.ua = UserAgent()
         self.driver = None
         self.session_data = {
             'session_start': None,
             'user_agent': None,
-            'vpn_extension': None,
+            'browser_type': None,
             'pages_visited': 0,
             'ads_closed': 0
         }
 
     def setup_driver(self):
-        """Setup Chrome driver untuk Render"""
-        chrome_options = Options()
+        """Setup browser driver menggunakan yang tersedia di system"""
+        # Coba Chrome terlebih dahulu
+        if self.setup_chrome():
+            self.session_data['browser_type'] = 'chrome'
+            return True
         
-        # Rotasi User Agent
-        user_agent = self.ua.random
-        chrome_options.add_argument(f'--user-agent={user_agent}')
-        self.session_data['user_agent'] = user_agent
+        # Jika Chrome gagal, coba Firefox
+        if self.setup_firefox():
+            self.session_data['browser_type'] = 'firefox'
+            return True
         
-        # Coba load VPN extension jika ada
-        try:
-            crx_path = "extensions/touch_vpn.crx"
-            if os.path.exists(crx_path) and os.path.getsize(crx_path) > 1000:
-                chrome_options.add_extension(crx_path)
-                self.session_data['vpn_extension'] = 'touchvpn'
-                logger.info("VPN extension loaded")
-        except Exception as e:
-            logger.warning(f"VPN not loaded: {e}")
+        logger.error("❌ No browser available in the system")
+        return False
 
-        # Konfigurasi untuk environment Render
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--disable-extensions')
-        chrome_options.add_argument('--disable-plugins')
-        chrome_options.add_argument('--disable-images')  # Optional: percepat loading
-        
-        # Gunakan chromium-browser yang tersedia di Render
-        chrome_options.binary_location = self.find_chrome_binary()
-        
-        logger.info(f"Using Chrome binary: {chrome_options.binary_location}")
-        
+    def setup_chrome(self):
+        """Setup Chrome driver"""
         try:
+            chrome_options = Options()
+            
+            # Rotasi User Agent
+            user_agent = self.ua.random
+            chrome_options.add_argument(f'--user-agent={user_agent}')
+            self.session_data['user_agent'] = user_agent
+            
+            # Konfigurasi untuk environment terbatas
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--disable-extensions')
+            
+            # Auto-detect Chrome binary
+            chrome_binaries = [
+                '/usr/bin/google-chrome',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/chromium',
+                '/usr/local/bin/chromium'
+            ]
+            
+            for binary in chrome_binaries:
+                if os.path.exists(binary):
+                    chrome_options.binary_location = binary
+                    break
+            
             self.driver = webdriver.Chrome(options=chrome_options)
             logger.info("✅ Chrome driver started successfully")
             return True
+            
         except Exception as e:
-            logger.error(f"❌ Failed to start Chrome: {e}")
+            logger.warning(f"Chrome setup failed: {e}")
             return False
 
-    def find_chrome_binary(self):
-        """Cari Chrome/Chromium binary yang tersedia di system"""
-        possible_paths = [
-            '/usr/bin/google-chrome',
-            '/usr/bin/chromium-browser', 
-            '/usr/bin/chromium',
-            '/app/.apt/usr/bin/google-chrome',
-            '/usr/local/bin/chromium'
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                logger.info(f"Found browser at: {path}")
-                return path
-        
-        logger.warning("No Chrome/Chromium found, using system default")
-        return None
+    def setup_firefox(self):
+        """Setup Firefox driver"""
+        try:
+            firefox_options = FirefoxOptions()
+            
+            # Rotasi User Agent
+            user_agent = self.ua.random
+            firefox_options.add_argument(f'--user-agent={user_agent}')
+            self.session_data['user_agent'] = user_agent
+            
+            # Konfigurasi Firefox
+            firefox_options.add_argument('--headless')
+            firefox_options.add_argument('--no-sandbox')
+            firefox_options.add_argument('--disable-dev-shm-usage')
+            
+            self.driver = webdriver.Firefox(options=firefox_options)
+            logger.info("✅ Firefox driver started successfully")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Firefox setup failed: {e}")
+            return False
 
     def smart_scroll(self, direction="down", duration=None):
         """Scroll halaman dengan durasi acak"""
@@ -103,58 +121,69 @@ class SeleniumBot:
         
         start_time = time.time()
         scroll_pause_time = 0.1
-        scroll_height = self.driver.execute_script("return document.body.scrollHeight")
         
-        if direction == "down":
-            current_position = 0
-            while current_position < scroll_height and (time.time() - start_time) < duration:
-                current_position += random.randint(100, 300)
-                self.driver.execute_script(f"window.scrollTo(0, {current_position});")
-                time.sleep(scroll_pause_time)
-        else:  # up
-            current_position = scroll_height
-            while current_position > 0 and (time.time() - start_time) < duration:
-                current_position -= random.randint(100, 300)
-                self.driver.execute_script(f"window.scrollTo(0, {current_position});")
-                time.sleep(scroll_pause_time)
+        try:
+            scroll_height = self.driver.execute_script("return document.body.scrollHeight")
+            
+            if direction == "down":
+                current_position = 0
+                while current_position < scroll_height and (time.time() - start_time) < duration:
+                    current_position += random.randint(100, 300)
+                    self.driver.execute_script(f"window.scrollTo(0, {current_position});")
+                    time.sleep(scroll_pause_time)
+            else:  # up
+                current_position = scroll_height
+                while current_position > 0 and (time.time() - start_time) < duration:
+                    current_position -= random.randint(100, 300)
+                    self.driver.execute_script(f"window.scrollTo(0, {current_position});")
+                    time.sleep(scroll_pause_time)
+        except Exception as e:
+            logger.warning(f"Scroll error: {e}")
 
     def handle_ads(self):
-        """Coba tutup iklan dengan berbagai selector"""
+        """Coba tutup iklan"""
         close_selectors = [
             "button[aria-label*='close' i]",
             "button[class*='close' i]",
             ".close-btn",
-            ".ad-close", 
+            ".ad-close",
             ".skip-button",
-            "[data-dismiss='modal']"
+            "[data-dismiss='modal']",
+            ".modal-close"
         ]
         
         for selector in close_selectors:
             try:
                 buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
                 for button in buttons:
-                    if button.is_displayed() and button.is_enabled():
-                        button.click()
-                        self.session_data['ads_closed'] += 1
-                        logger.info(f"✅ Closed ad: {selector}")
-                        time.sleep(1)
-                        return True
-            except Exception:
+                    try:
+                        if button.is_displayed() and button.is_enabled():
+                            button.click()
+                            self.session_data['ads_closed'] += 1
+                            logger.info(f"✅ Closed ad: {selector}")
+                            time.sleep(1)
+                            return True
+                    except:
+                        continue
+            except:
                 continue
         
         # Coba dengan teks
-        close_texts = ['close', 'skip', 'tutup', 'lanjut']
+        close_texts = ['close', 'skip', 'tutup', 'lanjut', 'lewati']
         for text in close_texts:
             try:
                 elements = self.driver.find_elements(By.XPATH, f"//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{text}')]")
                 for element in elements:
-                    if element.is_displayed() and element.is_enabled():
-                        element.click()
-                        self.session_data['ads_closed'] += 1
-                        logger.info(f"✅ Closed ad with text: {text}")
-                        time.sleep(1)
-                        return True
-            except Exception:
+                    try:
+                        if element.is_displayed() and element.is_enabled():
+                            element.click()
+                            self.session_data['ads_closed'] += 1
+                            logger.info(f"✅ Closed ad with text: {text}")
+                            time.sleep(1)
+                            return True
+                    except:
+                        continue
+            except:
                 continue
         
         return False
@@ -201,19 +230,17 @@ class SeleniumBot:
             for link in links:
                 try:
                     href = link.get_attribute('href')
-                    text = link.text.strip()
                     if (href and href.startswith('http') and 
-                        link.is_displayed() and link.is_enabled() and
-                        len(text) > 3 and len(text) < 100):
+                        link.is_displayed() and link.is_enabled()):
                         valid_links.append(link)
-                except Exception:
+                except:
                     continue
             
             if valid_links:
                 # Pilih random link dari 5 pertama yang valid
-                chosen = random.choice(valid_links[:5])
+                chosen = random.choice(valid_links[:min(5, len(valid_links))])
                 href = chosen.get_attribute('href')
-                logger.info(f"🔗 Clicking random link: {href}")
+                logger.info(f"🔗 Clicking random link: {href[:50]}...")
                 chosen.click()
                 
                 # Tunggu page load
@@ -248,7 +275,7 @@ class SeleniumBot:
         return {
             'session_start': self.session_data['session_start'],
             'user_agent': self.session_data['user_agent'],
-            'vpn_extension': self.session_data['vpn_extension'],
+            'browser_type': self.session_data['browser_type'],
             'pages_visited': self.session_data['pages_visited'],
             'ads_closed': self.session_data['ads_closed'],
             'current_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -425,8 +452,8 @@ HTML_TEMPLATE = '''
                 <div class="stat-value" id="ads">0</div>
             </div>
             <div class="stat-card">
-                <h3>VPN Extension</h3>
-                <div class="stat-value" id="vpn">-</div>
+                <h3>Browser</h3>
+                <div class="stat-value" id="browser">-</div>
             </div>
             <div class="stat-card">
                 <h3>Session Start</h3>
@@ -453,7 +480,7 @@ HTML_TEMPLATE = '''
                         (data.status === 'Running' ? 'status-running' : 'status-stopped');
                     document.getElementById('pages').textContent = data.pages_visited || 0;
                     document.getElementById('ads').textContent = data.ads_closed || 0;
-                    document.getElementById('vpn').textContent = data.vpn_extension || '-';
+                    document.getElementById('browser').textContent = data.browser_type || '-';
                     document.getElementById('sessionStart').textContent = data.session_start || '-';
                     document.getElementById('currentTime').textContent = data.current_time || '-';
                 })
@@ -511,7 +538,7 @@ def control_bot(action):
     if action == 'start' and not bot_instance:
         def run_bot():
             global bot_instance
-            bot_instance = SeleniumBot()
+            bot_instance = UniversalBot()
             # ⚠️ GANTI URL TARGET ANDA DI BAWAH INI ⚠️
             target_urls = [
                 "https://www.wikipedia.org",
