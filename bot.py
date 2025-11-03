@@ -4,13 +4,16 @@ import random
 import logging
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from fake_useragent import UserAgent
 from datetime import datetime
 import requests
 from flask import Flask, jsonify, render_template_string
 import threading
+import json
 
 # Setup logging
 logging.basicConfig(
@@ -23,101 +26,179 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 bot_instance = None
 
-class UniversalBot:
+class AdvancedSeleniumBot:
     def __init__(self):
         self.ua = UserAgent()
         self.driver = None
         self.session_data = {
             'session_start': None,
             'user_agent': None,
-            'browser_type': None,
+            'vpn_extension': None,
+            'google_domain': None,
             'pages_visited': 0,
-            'ads_closed': 0
+            'ads_closed': 0,
+            'data_leak_checked': False,
+            'current_step': 'Initializing'
         }
 
     def setup_driver(self):
-        """Setup browser driver menggunakan yang tersedia di system"""
-        # Coba Chrome terlebih dahulu
-        if self.setup_chrome():
-            self.session_data['browser_type'] = 'chrome'
-            return True
+        """Setup Chrome driver dengan semua konfigurasi"""
+        chrome_options = Options()
         
-        # Jika Chrome gagal, coba Firefox
-        if self.setup_firefox():
-            self.session_data['browser_type'] = 'firefox'
-            return True
+        # 1. Rotasi User Agent (setiap session berbeda)
+        user_agent = self.ua.random
+        chrome_options.add_argument(f'--user-agent={user_agent}')
+        self.session_data['user_agent'] = user_agent
+        logger.info(f"🔄 User Agent: {user_agent}")
         
-        logger.error("❌ No browser available in the system")
-        return False
-
-    def setup_chrome(self):
-        """Setup Chrome driver"""
+        # 2. VPN Extension (Touch VPN)
         try:
-            chrome_options = Options()
-            
-            # Rotasi User Agent
-            user_agent = self.ua.random
-            chrome_options.add_argument(f'--user-agent={user_agent}')
-            self.session_data['user_agent'] = user_agent
-            
-            # Konfigurasi untuk environment terbatas
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--headless')
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--window-size=1920,1080')
-            chrome_options.add_argument('--disable-extensions')
-            
-            # Auto-detect Chrome binary
-            chrome_binaries = [
-                '/usr/bin/google-chrome',
-                '/usr/bin/chromium-browser',
-                '/usr/bin/chromium',
-                '/usr/local/bin/chromium'
-            ]
-            
-            for binary in chrome_binaries:
-                if os.path.exists(binary):
-                    chrome_options.binary_location = binary
-                    break
-            
+            # Download VPN extension jika belum ada
+            self.download_vpn_extension()
+            crx_path = "touchvpn.crx"
+            if os.path.exists(crx_path) and os.path.getsize(crx_path) > 1000:
+                chrome_options.add_extension(crx_path)
+                self.session_data['vpn_extension'] = 'Touch VPN'
+                logger.info("✅ VPN Extension: Touch VPN loaded")
+        except Exception as e:
+            logger.warning(f"⚠️ VPN Extension: {e}")
+
+        # 3. Konfigurasi Chrome untuk Render
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        
+        # Gunakan Chrome dari instalasi manual
+        chrome_options.binary_location = self.find_chrome_binary()
+        
+        try:
             self.driver = webdriver.Chrome(options=chrome_options)
             logger.info("✅ Chrome driver started successfully")
-            return True
             
+            # Handle VPN popup jika ada
+            time.sleep(3)
+            self.handle_vpn_popup()
+            
+            return True
         except Exception as e:
-            logger.warning(f"Chrome setup failed: {e}")
+            logger.error(f"❌ Failed to start Chrome: {e}")
             return False
 
-    def setup_firefox(self):
-        """Setup Firefox driver"""
+    def find_chrome_binary(self):
+        """Cari Chrome binary"""
+        paths = [
+            '/tmp/chrome/chrome',
+            '/tmp/chrome/google-chrome',
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium-browser'
+        ]
+        for path in paths:
+            if os.path.exists(path):
+                return path
+        return None
+
+    def download_vpn_extension(self):
+        """Download VPN extension dari Chrome Web Store"""
+        crx_path = "touchvpn.crx"
+        if not os.path.exists(crx_path):
+            vpn_url = "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dbihmplhobchoageeokmgbdihknkjbknd%26installsource%3Dwebstore%26uc"
+            response = requests.get(vpn_url, stream=True)
+            with open(crx_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            logger.info("✅ VPN extension downloaded")
+
+    def handle_vpn_popup(self):
+        """Handle VPN extension popup"""
         try:
-            firefox_options = FirefoxOptions()
-            
-            # Rotasi User Agent
-            user_agent = self.ua.random
-            firefox_options.add_argument(f'--user-agent={user_agent}')
-            self.session_data['user_agent'] = user_agent
-            
-            # Konfigurasi Firefox
-            firefox_options.add_argument('--headless')
-            firefox_options.add_argument('--no-sandbox')
-            firefox_options.add_argument('--disable-dev-shm-usage')
-            
-            self.driver = webdriver.Firefox(options=firefox_options)
-            logger.info("✅ Firefox driver started successfully")
-            return True
-            
+            if len(self.driver.window_handles) > 1:
+                for handle in self.driver.window_handles[1:]:
+                    self.driver.switch_to.window(handle)
+                    self.driver.close()
+                self.driver.switch_to.window(self.driver.window_handles[0])
         except Exception as e:
-            logger.warning(f"Firefox setup failed: {e}")
+            logger.warning(f"VPN popup handling: {e}")
+
+    def change_google_location(self):
+        """4. Rubah titik Google sesuai lokasi VPN"""
+        google_domains = {
+            "US": "https://www.google.com",
+            "UK": "https://www.google.co.uk", 
+            "Japan": "https://www.google.co.jp",
+            "Australia": "https://www.google.com.au",
+            "Germany": "https://www.google.de",
+            "France": "https://www.google.fr",
+            "Singapore": "https://www.google.com.sg",
+            "Indonesia": "https://www.google.co.id"
+        }
+        
+        location = random.choice(list(google_domains.keys()))
+        domain = google_domains[location]
+        
+        self.session_data['current_step'] = f"Changing Google to {location}"
+        logger.info(f"🌍 Changing Google location: {location} -> {domain}")
+        
+        try:
+            self.driver.get(domain)
+            time.sleep(3)
+            self.session_data['google_domain'] = domain
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to change Google location: {e}")
             return False
 
-    def smart_scroll(self, direction="down", duration=None):
-        """Scroll halaman dengan durasi acak"""
-        if duration is None:
-            duration = random.uniform(3, 8)
+    def check_data_leak(self):
+        """5. Cek kebocoran data"""
+        self.session_data['current_step'] = "Checking data leak"
+        logger.info("🔍 Checking data leak...")
         
-        logger.info(f"Scrolling {direction} for {duration:.2f}s")
+        try:
+            self.driver.get("https://ipleak.net")
+            time.sleep(5)
+            
+            # Cari informasi IP
+            ip_elements = self.driver.find_elements(By.XPATH, "//*[contains(text(), 'IP address')]")
+            if ip_elements:
+                ip_info = ip_elements[0].text[:100]  # Ambil sebagian teks
+                logger.info(f"📊 IP Check: {ip_info}")
+            
+            self.session_data['data_leak_checked'] = True
+            return True
+        except Exception as e:
+            logger.error(f"❌ Data leak check failed: {e}")
+            return False
+
+    def visit_target_url(self, url):
+        """6. Buka link target"""
+        self.session_data['current_step'] = f"Visiting {url}"
+        logger.info(f"🌐 Visiting target URL: {url}")
+        
+        try:
+            self.driver.get(url)
+            self.session_data['pages_visited'] += 1
+            
+            # Tunggu page load
+            time.sleep(random.uniform(3, 6))
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to visit {url}: {e}")
+            return False
+
+    def smart_scroll(self, direction="down"):
+        """7. Scroll dengan durasi acak setiap session"""
+        durations = {
+            "down": random.uniform(8, 15),
+            "up": random.uniform(5, 12)
+        }
+        
+        duration = durations[direction]
+        self.session_data['current_step'] = f"Scrolling {direction} ({duration:.1f}s)"
+        logger.info(f"📜 Scrolling {direction} for {duration:.2f} seconds")
         
         start_time = time.time()
         scroll_pause_time = 0.1
@@ -128,30 +209,93 @@ class UniversalBot:
             if direction == "down":
                 current_position = 0
                 while current_position < scroll_height and (time.time() - start_time) < duration:
-                    current_position += random.randint(100, 300)
+                    current_position += random.randint(50, 150)
                     self.driver.execute_script(f"window.scrollTo(0, {current_position});")
                     time.sleep(scroll_pause_time)
             else:  # up
                 current_position = scroll_height
                 while current_position > 0 and (time.time() - start_time) < duration:
-                    current_position -= random.randint(100, 300)
+                    current_position -= random.randint(50, 150)
                     self.driver.execute_script(f"window.scrollTo(0, {current_position});")
                     time.sleep(scroll_pause_time)
+                    
+            return True
         except Exception as e:
-            logger.warning(f"Scroll error: {e}")
+            logger.warning(f"Scroll {direction} interrupted: {e}")
+            return False
+
+    def click_random_post(self):
+        """8. Buka link postingan acak"""
+        self.session_data['current_step'] = "Clicking random post"
+        logger.info("🔗 Looking for posts to click...")
+        
+        try:
+            # Cari link yang mungkin postingan
+            post_selectors = [
+                "a[href*='post']",
+                "a[href*='article']", 
+                "a[href*='blog']",
+                "a[class*='post']",
+                "a[class*='article']",
+                ".post-title a",
+                ".entry-title a",
+                "h2 a",
+                "h3 a",
+                ".title a",
+                "[class*='title'] a"
+            ]
+            
+            all_links = []
+            for selector in post_selectors:
+                try:
+                    links = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                    all_links.extend(links)
+                except:
+                    continue
+            
+            # Filter valid links
+            valid_links = []
+            for link in all_links:
+                try:
+                    if link.is_displayed() and link.is_enabled():
+                        valid_links.append(link)
+                except:
+                    continue
+            
+            if valid_links:
+                chosen_link = random.choice(valid_links)
+                post_url = chosen_link.get_attribute('href') or "Unknown URL"
+                logger.info(f"📖 Clicking post: {post_url[:80]}...")
+                chosen_link.click()
+                
+                # Tunggu page load
+                time.sleep(random.uniform(4, 8))
+                return True
+            else:
+                logger.warning("No posts found to click")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to click post: {e}")
+            return False
 
     def handle_ads(self):
-        """Coba tutup iklan"""
+        """9. Lewati iklan dengan berbagai keyword"""
+        self.session_data['current_step'] = "Handling ads"
+        
         close_selectors = [
             "button[aria-label*='close' i]",
             "button[class*='close' i]",
+            "div[class*='close' i]",
+            "span[class*='close' i]",
+            "a[class*='close' i]",
             ".close-btn",
             ".ad-close",
             ".skip-button",
-            "[data-dismiss='modal']",
-            ".modal-close"
+            "[data-dismiss='modal']"
         ]
         
+        # Coba dengan CSS selector
         for selector in close_selectors:
             try:
                 buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
@@ -160,7 +304,7 @@ class UniversalBot:
                         if button.is_displayed() and button.is_enabled():
                             button.click()
                             self.session_data['ads_closed'] += 1
-                            logger.info(f"✅ Closed ad: {selector}")
+                            logger.info(f"✅ Closed ad with selector: {selector}")
                             time.sleep(1)
                             return True
                     except:
@@ -168,8 +312,8 @@ class UniversalBot:
             except:
                 continue
         
-        # Coba dengan teks
-        close_texts = ['close', 'skip', 'tutup', 'lanjut', 'lewati']
+        # Coba dengan text content
+        close_texts = ['tutup', 'close', 'skip', 'lanjut', 'lewati', 'skip ad']
         for text in close_texts:
             try:
                 elements = self.driver.find_elements(By.XPATH, f"//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{text}')]")
@@ -188,130 +332,105 @@ class UniversalBot:
         
         return False
 
-    def visit_website(self, url):
-        """Kunjungi website dengan interaksi lengkap"""
+    def refresh_page(self):
+        """10. Refresh halaman"""
+        self.session_data['current_step'] = "Refreshing page"
+        logger.info("🔄 Refreshing page...")
+        
         try:
-            logger.info(f"🌐 Visiting: {url}")
-            self.driver.get(url)
-            self.session_data['pages_visited'] += 1
-            
-            # Tunggu page load
-            time.sleep(random.uniform(2, 5))
-            
-            # Handle initial ads
-            self.handle_ads()
-            
-            # Scroll down
-            self.smart_scroll("down", random.uniform(4, 8))
-            
-            # Scroll up
-            self.smart_scroll("up", random.uniform(2, 5))
-            
-            # Click random links
-            self.click_random_links()
-            
-            # Handle ads lagi
-            self.handle_ads()
-            
-            logger.info(f"✅ Successfully processed: {url}")
+            self.driver.refresh()
+            time.sleep(3)
             return True
-            
         except Exception as e:
-            logger.error(f"❌ Error visiting {url}: {e}")
+            logger.error(f"❌ Refresh failed: {e}")
             return False
 
-    def click_random_links(self):
-        """Klik link acak di halaman"""
-        try:
-            # Cari semua link
-            links = self.driver.find_elements(By.TAG_NAME, "a")
-            valid_links = []
-            
-            for link in links:
-                try:
-                    href = link.get_attribute('href')
-                    if (href and href.startswith('http') and 
-                        link.is_displayed() and link.is_enabled()):
-                        valid_links.append(link)
-                except:
-                    continue
-            
-            if valid_links:
-                # Pilih random link dari 5 pertama yang valid
-                chosen = random.choice(valid_links[:min(5, len(valid_links))])
-                href = chosen.get_attribute('href')
-                logger.info(f"🔗 Clicking random link: {href[:50]}...")
-                chosen.click()
-                
-                # Tunggu page load
-                time.sleep(random.uniform(3, 6))
-                
-                # Handle ads di page baru
-                self.handle_ads()
-                
-                # Kembali ke previous page
-                self.driver.back()
-                time.sleep(2)
-                
-                return True
-                
-        except Exception as e:
-            logger.warning(f"Could not click links: {e}")
+    def clear_cache(self):
+        """11. Clear cache dan history"""
+        self.session_data['current_step'] = "Clearing cache"
+        logger.info("🧹 Clearing cache and history...")
         
-        return False
-
-    def clear_data(self):
-        """Clear browser data"""
         try:
             self.driver.delete_all_cookies()
             self.driver.execute_script("window.localStorage.clear();")
             self.driver.execute_script("window.sessionStorage.clear();")
-            logger.info("🧹 Cleared browser data")
+            logger.info("✅ Cache cleared")
+            return True
         except Exception as e:
-            logger.warning(f"Warning clearing data: {e}")
+            logger.error(f"❌ Cache clear failed: {e}")
+            return False
 
     def get_session_stats(self):
-        """Dapatkan statistik sesi"""
+        """Ambil statistik session"""
         return {
             'session_start': self.session_data['session_start'],
             'user_agent': self.session_data['user_agent'],
-            'browser_type': self.session_data['browser_type'],
+            'vpn_extension': self.session_data['vpn_extension'],
+            'google_domain': self.session_data['google_domain'],
             'pages_visited': self.session_data['pages_visited'],
             'ads_closed': self.session_data['ads_closed'],
+            'data_leak_checked': self.session_data['data_leak_checked'],
+            'current_step': self.session_data['current_step'],
             'current_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'status': 'Running'
         }
 
-    def run_bot(self, urls):
-        """Jalankan bot utama"""
+    def run_complete_session(self, target_urls):
+        """12. Jalankan session lengkap dan ulang dari awal"""
         self.session_data['session_start'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Setup driver
         if not self.setup_driver():
-            logger.error("❌ Failed to setup driver, stopping bot")
+            logger.error("❌ Cannot start bot - driver setup failed")
             return
         
-        logger.info("🚀 Bot started successfully!")
+        logger.info("🚀 Starting complete bot session...")
         
         session_count = 0
         while True:
             try:
                 session_count += 1
-                logger.info(f"🔄 Starting session #{session_count}")
+                logger.info(f"🔄 Starting complete session #{session_count}")
                 
-                # Pilih URL acak
-                url = random.choice(urls)
+                # 1. Rotasi User Agent (sudah di setup_driver)
+                # 2. VPN Extension (sudah di setup_driver)
                 
-                # Kunjungi website
-                self.visit_website(url)
+                # 3. Rubah titik Google
+                self.change_google_location()
                 
-                # Clear data
-                self.clear_data()
+                # 4. Cek kebocoran data
+                self.check_data_leak()
                 
-                # Tunggu sebelum sesi berikutnya
-                wait_time = random.uniform(45, 120)
-                logger.info(f"⏰ Waiting {wait_time:.1f} seconds until next session...")
+                # 5. Buka link target
+                target_url = random.choice(target_urls)
+                self.visit_target_url(target_url)
+                
+                # 6. Scroll down (durasi random)
+                self.smart_scroll("down")
+                
+                # 7. Scroll up (durasi random)  
+                self.smart_scroll("up")
+                
+                # 8. Buka postingan
+                self.click_random_post()
+                
+                # 9. Handle iklan (multiple attempts)
+                for _ in range(3):
+                    self.handle_ads()
+                    time.sleep(1)
+                
+                # 10. Refresh
+                self.refresh_page()
+                
+                # 11. Clear cache
+                self.clear_cache()
+                
+                # 12. Tunggu sebelum mengulang
+                wait_time = random.uniform(60, 180)
+                logger.info(f"⏰ Waiting {wait_time:.1f}s before next session...")
+                self.session_data['current_step'] = f"Waiting {wait_time:.1f}s"
                 time.sleep(wait_time)
+                
+                logger.info("🔄 Restarting complete session from beginning...")
                 
             except KeyboardInterrupt:
                 logger.info("🛑 Bot stopped by user")
@@ -321,12 +440,12 @@ class UniversalBot:
                 logger.info("🔄 Restarting in 30 seconds...")
                 time.sleep(30)
 
-# Flask Routes
+# Flask Web Monitoring
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bot Monitor</title>
+    <title>Selenium Bot Monitor</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -338,7 +457,7 @@ HTML_TEMPLATE = '''
             min-height: 100vh;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 15px;
@@ -383,10 +502,10 @@ HTML_TEMPLATE = '''
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
-        .stats {
+        .stats-grid {
             padding: 30px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
         }
         .stat-card {
@@ -394,7 +513,6 @@ HTML_TEMPLATE = '''
             padding: 20px;
             border-radius: 10px;
             border-left: 4px solid #3498db;
-            text-align: center;
         }
         .stat-card h3 {
             margin: 0 0 10px 0;
@@ -404,9 +522,10 @@ HTML_TEMPLATE = '''
             letter-spacing: 1px;
         }
         .stat-value {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: bold;
             color: #2c3e50;
+            word-break: break-all;
         }
         .status-running { color: #28a745; }
         .status-stopped { color: #dc3545; }
@@ -417,150 +536,22 @@ HTML_TEMPLATE = '''
             margin: 20px;
             border-radius: 10px;
             font-family: 'Courier New', monospace;
-            height: 300px;
+            height: 400px;
             overflow-y: auto;
         }
         .log-entry {
             margin: 5px 0;
             font-size: 14px;
+            line-height: 1.4;
         }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🤖 Selenium Bot Monitor</h1>
-            <p>Real-time monitoring and control</p>
-        </div>
-        
-        <div class="controls">
-            <button class="btn btn-start" onclick="controlBot('start')">🚀 Start Bot</button>
-            <button class="btn btn-stop" onclick="controlBot('stop')">🛑 Stop Bot</button>
-        </div>
-        
-        <div class="stats" id="stats">
-            <div class="stat-card">
-                <h3>Status</h3>
-                <div class="stat-value status-stopped" id="status">Stopped</div>
-            </div>
-            <div class="stat-card">
-                <h3>Pages Visited</h3>
-                <div class="stat-value" id="pages">0</div>
-            </div>
-            <div class="stat-card">
-                <h3>Ads Closed</h3>
-                <div class="stat-value" id="ads">0</div>
-            </div>
-            <div class="stat-card">
-                <h3>Browser</h3>
-                <div class="stat-value" id="browser">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Session Start</h3>
-                <div class="stat-value" id="sessionStart">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Current Time</h3>
-                <div class="stat-value" id="currentTime">-</div>
-            </div>
-        </div>
-        
-        <div class="log-container" id="logContainer">
-            <div class="log-entry">>> System ready. Click "Start Bot" to begin.</div>
-        </div>
-    </div>
-
-    <script>
-        function updateStats() {
-            fetch('/api/stats')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('status').textContent = data.status || 'Stopped';
-                    document.getElementById('status').className = 'stat-value ' + 
-                        (data.status === 'Running' ? 'status-running' : 'status-stopped');
-                    document.getElementById('pages').textContent = data.pages_visited || 0;
-                    document.getElementById('ads').textContent = data.ads_closed || 0;
-                    document.getElementById('browser').textContent = data.browser_type || '-';
-                    document.getElementById('sessionStart').textContent = data.session_start || '-';
-                    document.getElementById('currentTime').textContent = data.current_time || '-';
-                })
-                .catch(error => {
-                    console.error('Error fetching stats:', error);
-                });
+        .current-step {
+            background: #fff3cd;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #ffc107;
         }
-
-        function controlBot(action) {
-            fetch(`/api/control/${action}`)
-                .then(response => response.json())
-                .then(data => {
-                    addLog(`Action: ${action} - ${data.status}`);
-                    if (action === 'start') {
-                        // Start polling for stats
-                        setInterval(updateStats, 3000);
-                    }
-                })
-                .catch(error => {
-                    addLog(`Error: ${error.message}`);
-                });
-        }
-
-        function addLog(message) {
-            const logContainer = document.getElementById('logContainer');
-            const timestamp = new Date().toLocaleTimeString();
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            logEntry.textContent = `[${timestamp}] ${message}`;
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
-
-        // Auto-update stats every 5 seconds
-        setInterval(updateStats, 5000);
-        updateStats(); // Initial update
-    </script>
-</body>
-</html>
-'''
-
-@app.route('/')
-def dashboard():
-    return render_template_string(HTML_TEMPLATE)
-
-@app.route('/api/stats')
-def get_stats():
-    if bot_instance:
-        return jsonify(bot_instance.get_session_stats())
-    return jsonify({'status': 'Stopped'})
-
-@app.route('/api/control/<action>')
-def control_bot(action):
-    global bot_instance
-    if action == 'start' and not bot_instance:
-        def run_bot():
-            global bot_instance
-            bot_instance = UniversalBot()
-            # ⚠️ GANTI URL TARGET ANDA DI BAWAH INI ⚠️
-            target_urls = [
-                "https://www.wikipedia.org",
-                "https://www.github.com",
-                "https://stackoverflow.com",
-                "https://www.reddit.com",
-                "https://www.quora.com"
-            ]
-            bot_instance.run_bot(target_urls)
-        
-        thread = threading.Thread(target=run_bot)
-        thread.daemon = True
-        thread.start()
-        return jsonify({'status': 'Bot started successfully'})
-    
-    elif action == 'stop' and bot_instance:
-        if bot_instance.driver:
-            bot_instance.driver.quit()
-        bot_instance = None
-        return jsonify({'status': 'Bot stopped successfully'})
-    
-    return jsonify({'status': 'No action taken'})
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=False)
+        .step-text {
+            font-size: 16px;
+            font-weight: bold;
+  
