@@ -11,7 +11,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from fake_useragent import UserAgent
 from datetime import datetime
 import requests
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template
 import threading
 
 # Setup logging
@@ -389,89 +389,9 @@ class AdvancedSeleniumBot:
                 time.sleep(30)
 
 # Flask Routes
-HTML_TEMPLATE = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Selenium Bot Monitor</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
-        .header { text-align: center; background: #2c3e50; color: white; padding: 20px; border-radius: 10px; }
-        .controls { text-align: center; margin: 20px 0; }
-        .btn { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
-        .btn-start { background: #27ae60; color: white; }
-        .btn-stop { background: #e74c3c; color: white; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin: 20px 0; }
-        .stat-card { background: #ecf0f1; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db; }
-        .log-container { background: #2c3e50; color: #27ae60; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto; font-family: monospace; }
-        .status-running { color: #27ae60; }
-        .status-stopped { color: #e74c3c; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🤖 Selenium Bot Monitor</h1>
-        </div>
-        
-        <div class="controls">
-            <button class="btn btn-start" onclick="controlBot('start')">🚀 Start Bot</button>
-            <button class="btn btn-stop" onclick="controlBot('stop')">🛑 Stop Bot</button>
-        </div>
-
-        <div class="stats">
-            <div class="stat-card"><h3>Status</h3><div class="stat-value status-stopped" id="status">Stopped</div></div>
-            <div class="stat-card"><h3>Pages Visited</h3><div class="stat-value" id="pages">0</div></div>
-            <div class="stat-card"><h3>Ads Closed</h3><div class="stat-value" id="ads">0</div></div>
-            <div class="stat-card"><h3>VPN</h3><div class="stat-value" id="vpn">-</div></div>
-            <div class="stat-card"><h3>Google Domain</h3><div class="stat-value" id="googleDomain">-</div></div>
-            <div class="stat-card"><h3>Current Step</h3><div class="stat-value" id="currentStep">-</div></div>
-        </div>
-        
-        <div class="log-container" id="logContainer">
-            <div>> System ready. Click "Start Bot" to begin.</div>
-        </div>
-    </div>
-
-    <script>
-        function updateStats() {
-            fetch('/api/stats').then(r => r.json()).then(data => {
-                document.getElementById('status').textContent = data.status || 'Stopped';
-                document.getElementById('status').className = 'stat-value ' + (data.status === 'Running' ? 'status-running' : 'status-stopped');
-                document.getElementById('pages').textContent = data.pages_visited || 0;
-                document.getElementById('ads').textContent = data.ads_closed || 0;
-                document.getElementById('vpn').textContent = data.vpn_extension || '-';
-                document.getElementById('googleDomain').textContent = data.google_domain || '-';
-                document.getElementById('currentStep').textContent = data.current_step || '-';
-            });
-        }
-
-        function controlBot(action) {
-            fetch(`/api/control/${action}`).then(r => r.json()).then(data => {
-                addLog(`${action}: ${data.status}`);
-            });
-        }
-
-        function addLog(message) {
-            const logContainer = document.getElementById('logContainer');
-            const timestamp = new Date().toLocaleTimeString();
-            logContainer.innerHTML += `<div>[${timestamp}] ${message}</div>`;
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
-
-        setInterval(updateStats, 3000);
-        updateStats();
-    </script>
-</body>
-</html>
-'''
-
 @app.route('/')
 def dashboard():
-    return render_template_string(HTML_TEMPLATE)
+    return render_template('dashboard.html')
 
 @app.route('/api/stats')
 def get_stats():
@@ -488,9 +408,9 @@ def control_bot(action):
             bot_instance = AdvancedSeleniumBot()
             # ⚠️ GANTI URL TARGET ANDA DI SINI ⚠️
             target_urls = [
-                "https://www.cryptoajah.blogspot.com",
-                "https://www.cryptoajah.blogspot.com",
-                "https://cryptoajah.blogspot.com"
+                "https://www.wikipedia.org",
+                "https://www.github.com",
+                "https://stackoverflow.com"
             ]
             bot_instance.run_complete_session(target_urls)
         
@@ -500,4 +420,13 @@ def control_bot(action):
         return jsonify({'status': 'Bot started successfully'})
     
     elif action == 'stop' and bot_instance:
+        if bot_instance.driver:
+            bot_instance.driver.quit()
+        bot_instance = None
+        return jsonify({'status': 'Bot stopped successfully'})
     
+    else:
+        return jsonify({'status': 'No action taken'})
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000, debug=False)
