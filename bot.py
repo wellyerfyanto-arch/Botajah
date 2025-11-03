@@ -408,9 +408,9 @@ def control_bot(action):
             bot_instance = AdvancedSeleniumBot()
             # ⚠️ GANTI URL TARGET ANDA DI SINI ⚠️
             target_urls = [
-                "https://www.wikipedia.org",
-                "https://www.github.com",
-                "https://stackoverflow.com"
+                "https://cryptoajah.blogspot.com",
+                "https://www.cryptoajah.blogspot.com",
+                "https://cryptoajah.blogspot.com"
             ]
             bot_instance.run_complete_session(target_urls)
         
