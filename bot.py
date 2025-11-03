@@ -342,8 +342,8 @@ def control_bot(action):
             global bot_instance
             bot_instance = SeleniumBot()
             target_urls = [
-                "https://www.example.com",  # Ganti dengan URL target
-                "https://www.example2.com"
+                "https://cryptoajah.blogspot.com/2025/10/panduan-lengkap-berinvestasi.html",  # Ganti dengan URL target
+                "https://cryptoajah.blogspot.com/"
             ]
             bot_instance.run_session(target_urls)
         
