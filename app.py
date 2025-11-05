@@ -607,11 +607,11 @@ def control_bot_start():
     
     # ⚠️ GANTI URL TARGET ANDA DI SINI ⚠️
     target_urls = [
-        "https://www.wikipedia.org",
-        "https://www.github.com",
-        "https://stackoverflow.com",
-        "https://www.reddit.com",
-        "https://www.quora.com"
+        "https://cryptoajah.blogspot.com/",
+        "https://cryptoajah.blogspot.com/2025/10/pengantar-cryptocurrency-apa-itu.html",
+        "https://cryptoajah.blogspot.com/2025/10/memahami-dompet-digital-dan-keamanan.html",
+        "https://cryptoajah.blogspot.com/",
+        "https://cryptoajah.blogspot.com/2025/10/sejarah-bitcoin-dan-perkembangannya.html"
     ]
     
     if bot_manager.start_bot(target_urls):
