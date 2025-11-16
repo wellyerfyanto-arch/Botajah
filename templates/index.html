@@ -438,6 +438,9 @@ function updateStats(data) {
     if (data.pages_visited !== undefined) {
         document.getElementById('pagesVisited').textContent = data.pages_visited;
     }
+    if (data.vpn_changes !== undefined) {
+        document.getElementById('vpnChanges').textContent = data.vpn_changes;
+    }
         }
         function exportLogs() {
             const logs = document.getElementById('logContainer').innerText;
