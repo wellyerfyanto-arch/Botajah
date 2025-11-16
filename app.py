@@ -14,9 +14,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from fake_useragent import UserAgent
 import requests
-from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
@@ -72,11 +70,31 @@ class StreamLogger:
 
 stream_logger = StreamLogger()
 
+# User Agents langsung di code
+DESKTOP_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+
+MOBILE_USER_AGENTS = [
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+]
+
+def get_random_user_agent(device_type='random'):
+    if device_type == 'desktop':
+        return random.choice(DESKTOP_USER_AGENTS)
+    elif device_type == 'mobile':
+        return random.choice(MOBILE_USER_AGENTS)
+    else:
+        return random.choice(DESKTOP_USER_AGENTS + MOBILE_USER_AGENTS)
+
 class BrowserAutomation:
     def __init__(self, config):
         self.config = config
         self.driver = None
-        self.ua = UserAgent()
         
     def setup_driver(self):
         try:
@@ -96,19 +114,14 @@ class BrowserAutomation:
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
             
-            # Set random user agent based on device type
+            # Set user agent
             device_type = self.config.get('device_type', 'random')
-            if device_type == 'desktop':
-                user_agent = self.ua.chrome
-            elif device_type == 'mobile':
-                user_agent = self.ua.random
-            else:
-                user_agent = random.choice([self.ua.chrome, self.ua.random])
-            
+            user_agent = get_random_user_agent(device_type)
             chrome_options.add_argument(f'--user-agent={user_agent}')
+            
             stream_logger.log(f"Using User Agent: {user_agent}", 'info')
             
-            # Initialize driver
+            # Initialize driver dengan webdriver-manager
             service = Service()
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -151,16 +164,6 @@ class BrowserAutomation:
             self.driver.get("https://www.google.com")
             self.human_like_delay(2, 4)
             
-            # Accept cookies if present
-            try:
-                accept_btn = WebDriverWait(self.driver, 5).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Accept all')]"))
-                )
-                accept_btn.click()
-                self.human_like_delay(1, 2)
-            except:
-                pass
-            
             # Find search box and input query
             search_box = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((By.NAME, "q"))
@@ -191,7 +194,6 @@ class BrowserAutomation:
             )
             
             if results and len(results) > 1:
-                # Skip first result (might be ad) and choose random from rest
                 random_result = random.choice(results[1:min(6, len(results))])
                 random_result.click()
                 self.human_like_delay(3, 6)
@@ -202,58 +204,12 @@ class BrowserAutomation:
             stream_logger.log(f"Click random result failed: {str(e)}", 'error')
             return False
     
-    def click_ads_if_exist(self):
-        """Click ads if available"""
-        try:
-            # Look for ad elements (this selector might need adjustment)
-            ads = self.driver.find_elements(By.CSS_SELECTOR, "[data-text-ad]")
-            if ads:
-                ad = random.choice(ads)
-                ad.click()
-                self.human_like_delay(10, 20)  # Stay on ad page
-                self.driver.back()
-                self.human_like_delay(2, 4)
-                return True
-            return False
-        except Exception as e:
-            stream_logger.log(f"Click ads failed: {str(e)}", 'error')
-            return False
-    
-    def simulate_reading_behavior(self, duration=30):
-        """Simulate reading behavior"""
-        start_time = time.time()
-        while time.time() - start_time < duration:
-            activity = random.choice(["scroll", "pause", "click_links"])
-            
-            if activity == "scroll":
-                self.human_scroll(1)
-            elif activity == "pause":
-                self.human_like_delay(5, 10)
-            elif activity == "click_links":
-                self.click_random_links()
-    
-    def click_random_links(self):
-        """Click random links on page"""
-        try:
-            links = self.driver.find_elements(By.TAG_NAME, "a")
-            if links:
-                valid_links = [link for link in links if link.is_displayed() and link.is_enabled()]
-                if valid_links:
-                    random_link = random.choice(valid_links[:10])
-                    random_link.click()
-                    self.human_like_delay(5, 10)
-                    self.driver.back()
-                    self.human_like_delay(2, 4)
-        except Exception as e:
-            pass
-    
     def visit_url(self, url):
         """Visit a URL directly"""
         try:
             self.driver.get(url)
             self.human_like_delay(3, 6)
             self.human_scroll(random.randint(2, 4))
-            self.simulate_reading_behavior(random.randint(20, 40))
             return True
         except Exception as e:
             stream_logger.log(f"Visit URL failed: {str(e)}", 'error')
@@ -285,15 +241,9 @@ class BrowserAutomation:
                     if success:
                         self.human_scroll(random.randint(2, 4))
                         
-                        # Occasionally click ads
-                        if random.random() < 0.3:
-                            self.click_ads_if_exist()
-                            session_stats['ads_clicked'] += 1
-                        
                         # Click random result
                         if self.click_random_result():
-                            self.simulate_reading_behavior(random.randint(20, 60))
-                            self.click_random_links()
+                            self.human_like_delay(10, 20)  # Simulate reading
                             self.human_scroll(2)
                 
                 if success:
