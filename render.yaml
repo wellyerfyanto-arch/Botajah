@@ -3,7 +3,7 @@ services:
     name: automated-browser-system
     env: python
     plan: free
-    buildCommand: chmod +x chrome_install.sh && ./chrome_install.sh && pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
