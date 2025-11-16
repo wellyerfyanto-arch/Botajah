@@ -2,6 +2,4 @@ flask==2.3.3
 gunicorn==21.2.0
 selenium==4.15.0
 webdriver-manager==4.0.1
-fake-useragent==1.4.0
-beautifulsoup4==4.12.2
-# Hapus lxml atau ganti dengan yang lebih compatible
+requests==2.31.0
