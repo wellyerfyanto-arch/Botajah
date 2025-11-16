@@ -7,4 +7,4 @@ services:
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.7  # Gunakan Python 3.11 yang lebih stabil
+        value: 3.11.7
