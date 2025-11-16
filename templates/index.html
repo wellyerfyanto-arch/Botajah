@@ -193,6 +193,7 @@
             font-size: 0.9em;
             color: #7f8c8d;
         }
+        
     </style>
 </head>
 <body>
@@ -241,15 +242,30 @@
                         </select>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="vpnExtension">🛡️ VPN Extension:</label>
-                        <select id="vpnExtension">
-                            <option value="random">Random Free VPN</option>
-                            <option value="touchvpn">Touch VPN</option>
-                            <option value="hotspotshield">Hotspot Shield</option>
-                            <option value="betternet">Betternet</option>
-                        </select>
-                    </div>
+                    <!-- Ganti bagian VPN Extension selection dengan ini: -->
+<div class="form-group">
+    <label for="vpnExtension">🛡️ VPN Extension:</label>
+    <select id="vpnExtension">
+        <option value="random">Random Free VPN</option>
+        <option value="none">No VPN</option>
+        <option value="Touch VPN">Touch VPN</option>
+        <option value="Hotspot Shield">Hotspot Shield</option>
+        <option value="Betternet">Betternet</option>
+        <option value="ZenMate">ZenMate</option>
+        <option value="Windscribe">Windscribe</option>
+        <option value="Hoxx VPN">Hoxx VPN</option>
+        <option value="SetupVPN">SetupVPN</option>
+        <option value="Urban VPN">Urban VPN</option>
+        <option value="TunnelBear">TunnelBear</option>
+        <option value="Free VPN - VPN Proxy">Free VPN Proxy</option>
+    </select>
+</div>
+
+<!-- Tambahkan stat card baru untuk VPN Changes: -->
+<div class="stat-card">
+    <div class="stat-number" id="vpnChanges">0</div>
+    <div class="stat-label">VPN Changes</div>
+</div>
                     
                     <div class="form-group">
                         <label for="customUrls">🔗 Custom URLs (one per line):</label>
