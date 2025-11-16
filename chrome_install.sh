@@ -1,30 +1,27 @@
 #!/bin/bash
-echo "🚀 Starting Chrome installation..."
+set -ex
 
-# Install dependencies
+echo "Installing system dependencies..."
 apt-get update
 apt-get install -y wget unzip
 
-# Download Chrome
-wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+echo "Installing Google Chrome..."
+wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
+echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+apt-get update
+apt-get install -y google-chrome-stable
 
-# Extract using ar (no root required)
-ar x google-chrome-stable_current_amd64.deb
-tar -xf data.tar.xz
-
-# Setup Chrome directory
-mkdir -p /tmp/chrome
-cp -r opt/google/chrome/* /tmp/chrome/
-
-# Download ChromeDriver
-wget -q https://storage.googleapis.com/chrome-for-testing-public/120.0.6099.109/linux64/chromedriver-linux64.zip
-unzip -q chromedriver-linux64.zip
-mv chromedriver-linux64/chromedriver /usr/local/bin/
+echo "Installing ChromeDriver..."
+CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1)
+CHROMEDRIVER_VERSION=$(wget -q -O - "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
+unzip chromedriver_linux64.zip
+mv chromedriver /usr/local/bin/
 chmod +x /usr/local/bin/chromedriver
 
-# Download VPN extension
-wget -q -O touchvpn.crx "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=109.0&x=id%3Dbihmplhobchoageeokmgbdihknkjbknd%26installsource%3Dwebstore%26uc"
+echo "Cleaning up..."
+rm chromedriver_linux64.zip
 
-echo "✅ Chrome installation completed!"
-echo "Chrome location: /tmp/chrome/chrome"
-echo "ChromeDriver location: /usr/local/bin/chromedriver"
+echo "Installation completed successfully!"
+google-chrome --version
+chromedriver --version
