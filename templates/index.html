@@ -424,7 +424,21 @@
             document.getElementById('logContainer').innerHTML = '';
             addLog('Logs cleared', 'info');
         }
-        
+        <!-- Update JavaScript function updateStats: -->
+function updateStats(data) {
+    if (data.sessions_completed !== undefined) {
+        document.getElementById('sessionsCompleted').textContent = data.sessions_completed;
+    }
+    if (data.tabs_opened !== undefined) {
+        document.getElementById('tabsOpened').textContent = data.tabs_opened;
+    }
+    if (data.ads_clicked !== undefined) {
+        document.getElementById('adsClicked').textContent = data.ads_clicked;
+    }
+    if (data.pages_visited !== undefined) {
+        document.getElementById('pagesVisited').textContent = data.pages_visited;
+    }
+        }
         function exportLogs() {
             const logs = document.getElementById('logContainer').innerText;
             const blob = new Blob([logs], { type: 'text/plain' });
